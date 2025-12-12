@@ -12,28 +12,42 @@ Step 1 — Инфраструктура + Web UI-скелет + smoke tests
 
 Step 1 завершен
 ✅Что реализовано:
+
 A) Docker Compose: web-proxy сервис (nginx)
+
 ✅ Добавлен сервис `web-proxy` с nginx:stable
+
 ✅ Настроен прокси на `aisnab_app:8000`
+
 ✅ Порт `8080:80` для доступа через nginx
+
 ✅ Настроены заголовки и таймауты
 
 B) Проверка compose
+
 ✅ `docker compose config --services` показывает: `database`, `minio`, `redis`, `app`, `web-proxy`
 
 C) Smoke tests (pytest)
+
 ✅ Создана структура тестов: `backend/tests/test_smoke.py`
+
 ✅ Реализованы 4 теста (health, health/db, health/storage, ui)
+
 ✅ Все тесты проходят: `4 passed`
 
 D) README.md: секция "Step 1 done"
+
 ✅ Добавлены инструкции по запуску и тестированию### Критерии приемки:
+
 ✅ Все сервисы поднимаются через `docker compose up -d --build`
+
 ✅ UI доступен через `http://localhost:8080/ui`
+
 ✅ Health endpoints работают через nginx
+
 ✅ `pytest` smoke tests проходят
 
-### Запуск приложения
+Запуск приложения
 
 ```bash
 cd infra
