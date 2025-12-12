@@ -1,38 +1,122 @@
-## План работ (что предстоит сделать дальше)
+AI-SNAB — локальное (offline-first) веб-приложение для сопровождения закупок: ведёт кейсы, поставщиков и документы, помогает контролировать комплектность по чек-листу и готовит основу для автоматизации (OCR → извлечение полей → локальный чат-ассистент).
 
-Ниже — план до MVP, который уже реально помогает в процессе закупок
-и контролирует правильность по чек-листу.  
+Сейчас в MVP есть:
 
-Мы двигаемся по шагам: сделал шаг → фиксируем → следующий шаг.
+Web UI (FastAPI + Jinja2) со страницами /ui/* и чатом справа (drawer)
 
-### Step 1 — Инфраструктура + UI-скелет (сделано / делаем сейчас)
-- [x] Docker Compose: nginx + postgres + minio + rabbitmq + redis + app
-- [x] UI (Jinja2) + чат справа (drawer) на всех страницах
-- [x] /health, /health/db, /health/storage
-- [x] офлайн артефакты: wheels, docker-images.tar, bootstrap/htmx
+инфраструктура через Docker Compose (Postgres, MinIO, Redis + приложение)
 
-### Step 2 — Реальные данные (Postgres) + CRUD (следующий этап)
-- [ ] SQLAlchemy модели: Supplier, SupplierContact, Case, Document, Template
-- [ ] Alembic миграции + создание таблиц
-- [ ] Seed демо-данных (обезличено) при старте или отдельной командой
-- [ ] API CRUD для поставщиков/кейсов/документов
-- [ ] UI вместо mock: таблицы из БД + формы добавления (минимум)
+health-проверки: /health, /health/db, /health/storage
 
-### Step 3 — Документы: загрузка, хранение, OCR pipeline (MVP для рутины)
-- [ ] Загрузка файлов (pdf/png/jpg) → MinIO (aisnab-files)
-- [ ] Статусы обработки: IN_PROGRESS/DONE/ERROR
-- [ ] Очередь RabbitMQ + worker (OCR/извлечение полей)
-- [ ] Экран “Документы”: preview + распознанный текст + подтверждение полей
+Дальше по плану: CRUD из БД, загрузка/хранение документов в MinIO, OCR-воркер, генерация документов и подключение локальной LLM (Ollama) без утечки данных наружу.
 
-### Step 4 — Локальный LLM (Ollama) + агент с инструментами
-- [ ] Установка Ollama локально (без облака)
-- [ ] Подключение /api/chat к Ollama (без утечки данных наружу)
-- [ ] Agent pattern: LLM вызывает инструменты:
-      validate_case(), generate_doc(), export_zip()
-- [ ] Guardrails: "не выдумывать факты", только из БД/документов
+Цель: MVP, который реально помогает в закупках: кейсы, чек-лист, документы, НМЦ/Приложения, локальный ассистент.
 
-### Step 5 — Генерация документов + тестирование перед применением
-- [ ] Шаблоны docx (Прил.7, Прил.7.1, справка-обоснование) в MinIO (aisnab-templates)
-- [ ] Генерация docx/pdf из данных кейса + таблиц НМЦ
-- [ ] Экспорт ZIP-пакета (все документы + manifest.json)
-- [ ] Тесты pytest: health, CRUD, генерация, storage, базовые сценарии
+## Step 1 — Инфраструктура + Web UI-скелет + smoke tests ✅
+
+### Запуск приложения
+
+```bash
+cd infra
+docker compose up -d --build
+```
+
+### Проверка сервисов
+
+Проверить, что все сервисы видны в compose:
+```bash
+docker compose config --services
+```
+
+Ожидается: `database`, `minio`, `redis`, `app`, `web-proxy`
+
+Проверить статус контейнеров:
+```bash
+docker compose ps
+```
+
+Все контейнеры должны быть в статусе `Running`.
+
+### Доступ к приложению
+
+Приложение доступно через Nginx web-proxy на порту 8080:
+
+- **UI**: http://localhost:8080/ui
+- **Health**: http://localhost:8080/health
+- **Health DB**: http://localhost:8080/health/db
+- **Health Storage**: http://localhost:8080/health/storage
+
+### Запуск smoke tests
+
+**Вариант 1 (внутри контейнера, рекомендуется):**
+```bash
+docker compose exec app pytest -q
+```
+
+**Вариант 2 (локально, если установлены зависимости):**
+```bash
+cd backend
+pytest -q
+```
+
+### Чек-лист Step 1
+
+- [x] `docker compose config --services` включает `web-proxy`
+- [x] `docker compose ps` показывает `web-proxy` в статусе `Running`
+- [x] `curl http://localhost:8080/health` возвращает `{"status":"ok"}`
+- [x] `pytest` проходит все smoke tests
+
+### Что реализовано в Step 1
+
+- ✅ Docker Compose: nginx (web-proxy) + postgres + minio + redis + app
+- ✅ Web UI (Jinja2): /ui/*, чат справа (drawer)
+- ✅ Health endpoints: /health, /health/db, /health/storage
+- ✅ Smoke tests pytest: health/ui endpoints
+
+Step 2 — Web UI + реальные данные (Postgres) + CRUD
+
+ SQLAlchemy модели: Supplier, SupplierContact, Case, Document, Template
+
+ Alembic миграции + создание таблиц
+
+ Seed демо-данных (обезличено)
+
+ API CRUD для поставщиков/кейсов/документов/шаблонов
+
+ Web UI: заменить mock на реальные данные из БД
+
+ Тесты CRUD
+
+Step 3 — Документы в Web UI: загрузка, хранение, OCR pipeline
+
+ Web UI: загрузка документов в кейс (pdf/png/jpg/docx)
+
+ Хранение файлов → MinIO (aisnab-files)
+
+ Очередь RabbitMQ + worker (OCR/извлечение полей)
+
+ Web UI: preview + распознанный текст + подтверждение полей
+
+ Тесты storage + worker
+
+Step 4 — Локальный LLM (Ollama) + агент с инструментами
+
+ Установка Ollama локально
+
+ /api/chat → Ollama (без утечки наружу)
+
+ Agent инструменты: validate_case(), generate_doc(), export_zip()
+
+ Guardrails: “не выдумывать факты”
+
+ Тесты поведения ассистента (no-hallucination)
+
+Step 5 — Генерация документов + тестирование перед применением
+
+ Шаблоны docx в MinIO (aisnab-templates)
+
+ Генерация приложений и др.
+
+ Экспорт ZIP (документы + manifest.json + хэши)
+
+ E2E тест: “кейс → 3 КП → НМЦ → export”
