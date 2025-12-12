@@ -1,0 +1,60 @@
+services:
+  database:
+    image: postgres:16
+    container_name: aisnab_database
+    environment:
+      POSTGRES_DB: aisnab
+      POSTGRES_USER: aisnab
+      POSTGRES_PASSWORD: aisnab
+    ports:
+      - "5432:5432"
+    volumes:
+      - aisnab_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: aisnab_minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - aisnab_minio_data:/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: aisnab_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - aisnab_redis_data:/data
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: aisnab_app
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/app:/app/backend/app
+      - aisnab_local_data:/data
+    depends_on:
+      - database
+      - minio
+      - redis
+    restart: unless-stopped
+
+volumes:
+  aisnab_pg_data:
+  aisnab_minio_data:
+  aisnab_redis_data:
+  aisnab_local_data:

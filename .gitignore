@@ -1,0 +1,22 @@
+﻿# Secrets
+.env
+
+# Offline artifacts (DO NOT COMMIT)
+vendor/wheels/
+vendor/docker-images.tar
+docker-images.tar
+
+# Python junk
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local envs / IDE
+.venv/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
