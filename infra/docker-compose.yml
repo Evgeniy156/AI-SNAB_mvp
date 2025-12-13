@@ -63,6 +63,7 @@ services:
       - "8000:8000"
     volumes:
       - ../backend/app:/app/backend/app
+      - ../backend/tests_e2e:/app/backend/tests_e2e
       - aisnab_local_data:/data
     depends_on:
       - database

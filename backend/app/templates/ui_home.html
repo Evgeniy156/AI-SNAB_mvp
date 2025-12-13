@@ -6,7 +6,11 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
     .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
-    code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+    code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; font-family: 'Courier New', monospace; }
+    pre { background: #f6f6f6; padding: 12px; border-radius: 6px; overflow-x: auto; }
+    pre code { background: none; padding: 0; }
+    ul { line-height: 1.6; }
+    li { margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -41,8 +45,37 @@
   </div>
 
   <div class="card">
-    <h3>Next steps</h3>
-    <p>Дальше мы добавим: загрузку КП/скринов, генерацию документов и чат-ассистента на локальном Ollama.</p>
+    <h3>Реализованные функции</h3>
+    <ul>
+      <li>✅ <strong>Чат-ассистент</strong> на локальном Ollama (Step 8)</li>
+      <li>✅ <strong>Генерация документов</strong> из шаблонов (Step 9)</li>
+      <li>✅ <strong>Экспорт ZIP</strong> с manifest.json и SHA256 (Step 9)</li>
+      <li>✅ <strong>E2E тесты</strong> полного flow (Step 10)</li>
+      <li>✅ <strong>Загрузка документов</strong> (КП, скрины, письма)</li>
+      <li>✅ <strong>Workflow закупки</strong> (кандидаты, КП, НМЦ, выбор победителя)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>API эндпоинты</h3>
+    <p>Основные API для работы с системой:</p>
+    <ul>
+      <li><code>POST /api/chat</code> — чат с LLM ассистентом</li>
+      <li><code>POST /api/documents/generate</code> — генерация документа из шаблона</li>
+      <li><code>POST /api/cases/{id}/export-zip</code> — экспорт кейса в ZIP</li>
+      <li><code>GET /api/cases/{id}/pricing</code> — расчёт НМЦ и валидация</li>
+      <li><code>POST /api/cases/{id}/candidates</code> — добавление кандидата</li>
+      <li><code>POST /api/cases/{id}/offers</code> — добавление коммерческого предложения</li>
+    </ul>
+    <p><a href="/docs">Полная документация API (Swagger)</a></p>
+  </div>
+
+  <div class="card">
+    <h3>Тестирование</h3>
+    <p>Запуск E2E тестов:</p>
+    <pre><code>docker compose -f infra/docker-compose.yml exec app pytest -q tests_e2e</code></pre>
+    <p>Запуск unit-тестов:</p>
+    <pre><code>docker compose -f infra/docker-compose.yml exec app pytest -q</code></pre>
   </div>
 </body>
 </html>

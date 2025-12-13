@@ -2,6 +2,7 @@
 from typing import List
 import uuid
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.document import DocumentOut
@@ -89,3 +90,28 @@ def generate_document_endpoint(
         status="DONE"
     )
 
+
+@router.get("/{document_id}/download-url", response_class=JSONResponse)
+def get_document_download_url(
+    document_id: uuid.UUID,
+    db: Session = Depends(get_db)
+):
+    """Получить presigned URL для скачивания документа."""
+    from app.models.document import Document
+    from app.services.storage import presigned_get_url
+    
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Документ не найден")
+    
+    if document.status != "DONE":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Документ не готов к скачиванию (статус: {document.status})"
+        )
+    
+    try:
+        url = presigned_get_url(document.storage_bucket, document.storage_key, expires=3600)
+        return {"url": url, "filename": document.original_filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка генерации ссылки: {str(e)}")

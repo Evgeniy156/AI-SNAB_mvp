@@ -75,6 +75,38 @@ def get_case_pricing(
     return recompute_case_pricing(db, case_id)
 
 
+@router.post("/{case_id}/candidates", response_class=JSONResponse, status_code=201)
+def add_candidate(
+    case_id: uuid.UUID,
+    supplier_id: uuid.UUID | None = None,
+    org_name: str | None = None,
+    inn: str | None = None,
+    contact_email: str | None = None,
+    contact_phone: str | None = None,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Добавить кандидата в закупку."""
+    from app.models.procurement import CaseCandidate
+    
+    candidate = add_candidate_to_case(
+        db, case_id,
+        supplier_id=supplier_id,
+        org_name=org_name,
+        inn=inn,
+        contact_email=contact_email,
+        contact_phone=contact_phone
+    )
+    
+    return {
+        "id": str(candidate.id),
+        "case_id": str(case_id),
+        "supplier_id": str(candidate.supplier_id) if candidate.supplier_id else None,
+        "org_name": candidate.org_name,
+        "rank_score": float(candidate.rank_score) if candidate.rank_score else None,
+        "rank_explanation": candidate.rank_explanation
+    }
+
+
 @router.post("/{case_id}/offers", response_class=JSONResponse, status_code=201)
 def create_offer(
     case_id: uuid.UUID,
