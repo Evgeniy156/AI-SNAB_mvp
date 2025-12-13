@@ -14,7 +14,12 @@ RUN pip install --upgrade pip && \
     pip install --prefer-binary --find-links /wheels -r /app/requirements.txt && \
     pip install --prefer-binary --find-links /wheels -r /app/requirements-dev.txt
 
+# Копируем и делаем исполняемым entrypoint скрипт
+COPY backend/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 COPY backend /app/backend
 WORKDIR /app/backend
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

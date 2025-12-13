@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карточка поставщика {{ supplier.name }} - AI-SNAB</title>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Навигация -->
+        <div class="mb-3">
+            <a href="/ui/suppliers" class="btn btn-secondary">← К списку поставщиков</a>
+        </div>
+
+        <!-- Заголовок -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="mb-0">{{ supplier.name }}</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>ИНН:</strong> {{ supplier.inn or '—' }}</p>
+                        <p><strong>КПП:</strong> {{ supplier.kpp or '—' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Создан:</strong> {{ supplier.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                        <p><strong>Обновлен:</strong> {{ supplier.updated_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="/api/suppliers/{{ supplier.id }}/context" class="btn btn-outline-primary" target="_blank">Экспорт контекста (JSON)</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Сообщение об ошибке -->
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-danger" role="alert">
+            {{ request.query_params.get('error') }}
+        </div>
+        {% endif %}
+
+        <!-- 1. Реквизиты -->
+        <details class="card mb-3" open>
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">1. Реквизиты</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Полное наименование</label>
+                            <textarea name="full_name" class="form-control" rows="2">{{ profile.full_name or '' }}</textarea>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Краткое наименование</label>
+                            <input type="text" name="short_name" class="form-control" value="{{ profile.short_name or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">ОГРН</label>
+                            <input type="text" name="ogrn" class="form-control" value="{{ profile.ogrn or '' }}">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">ОКПО</label>
+                            <input type="text" name="okpo" class="form-control" value="{{ profile.okpo or '' }}">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">ОКАТО</label>
+                            <input type="text" name="okato" class="form-control" value="{{ profile.okato or '' }}">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">КПП</label>
+                            <input type="text" name="kpp" class="form-control" value="{{ profile.kpp or supplier.kpp or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">ИНН</label>
+                            <input type="text" name="inn" class="form-control" value="{{ profile.inn or supplier.inn or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Почтовый индекс</label>
+                            <input type="text" name="postal_code" class="form-control" value="{{ profile.postal_code or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Юридический адрес</label>
+                        <textarea name="legal_address" class="form-control" rows="2">{{ profile.legal_address or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Фактический адрес</label>
+                        <textarea name="fact_address" class="form-control" rows="2">{{ profile.fact_address or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Почтовый адрес</label>
+                        <textarea name="mail_address" class="form-control" rows="2">{{ profile.mail_address or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 2. Контакты -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">2. Контакты</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Сайт</label>
+                            <input type="text" name="website" class="form-control" value="{{ profile.website or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="email" class="form-control" value="{{ profile.email or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Телефон</label>
+                            <input type="text" name="phone" class="form-control" value="{{ profile.phone or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Контактное лицо</label>
+                            <input type="text" name="contact_person" class="form-control" value="{{ profile.contact_person or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Должность контактного лица</label>
+                        <input type="text" name="contact_position" class="form-control" value="{{ profile.contact_position or '' }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 3. Деятельность -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">3. Деятельность</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="mb-3">
+                        <label class="form-label">Описание деятельности</label>
+                        <textarea name="business_description" class="form-control" rows="4">{{ profile.business_description or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Основная продукция/услуги</label>
+                        <textarea name="main_products_services" class="form-control" rows="3">{{ profile.main_products_services or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Отрасли/рынки</label>
+                        <textarea name="industries" class="form-control" rows="2">{{ profile.industries or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 4. ОКВЭД -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">4. ОКВЭД</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/okved">
+                    <div class="mb-3">
+                        <label class="form-label">Коды ОКВЭД (по одному в строке)</label>
+                        <textarea name="codes" class="form-control" rows="5">{% for code in okved_codes %}{{ code.code }}
+{% endfor %}</textarea>
+                        <small class="form-text text-muted">Пример: 25.11, 25.12, 25.13</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 5. Производство / мощности / оборудование -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">5. Производство / мощности / оборудование</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="mb-3">
+                        <label class="form-label">Производственные площадки</label>
+                        <textarea name="production_sites" class="form-control" rows="3">{{ profile.production_sites or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Описание мощностей</label>
+                        <textarea name="capacity_description" class="form-control" rows="3">{{ profile.capacity_description or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Краткое описание оборудования</label>
+                        <textarea name="equipment_summary" class="form-control" rows="2">{{ profile.equipment_summary or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+
+                <hr>
+                <h6>Оборудование (детально)</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Наименование</th>
+                            <th>Модель</th>
+                            <th>Количество</th>
+                            <th>Примечания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for eq in equipment %}
+                        <tr>
+                            <td>{{ eq.name }}</td>
+                            <td>{{ eq.model or '—' }}</td>
+                            <td>{{ eq.qty or '—' }}</td>
+                            <td>{{ eq.notes or '—' }}</td>
+                            <td>
+                                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/equipment/delete" class="d-inline">
+                                    <input type="hidden" name="equipment_id" value="{{ eq.id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить?')">Удалить</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/equipment/add">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <input type="text" name="name" class="form-control form-control-sm" placeholder="Наименование" required>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <input type="text" name="model" class="form-control form-control-sm" placeholder="Модель">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <input type="number" name="qty" class="form-control form-control-sm" placeholder="Кол-во">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <input type="text" name="notes" class="form-control form-control-sm" placeholder="Примечания">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">Добавить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 6. Персонал -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">6. Персонал</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Всего сотрудников</label>
+                            <input type="number" name="headcount_total" class="form-control" value="{{ profile.headcount_total or '' }}">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Инженерный состав</label>
+                            <input type="number" name="headcount_engineering" class="form-control" value="{{ profile.headcount_engineering or '' }}">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Производственный</label>
+                            <input type="number" name="headcount_production" class="form-control" value="{{ profile.headcount_production or '' }}">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">ОТК/качество</label>
+                            <input type="number" name="headcount_quality" class="form-control" value="{{ profile.headcount_quality or '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ключевые специалисты</label>
+                        <textarea name="key_specialists" class="form-control" rows="3">{{ profile.key_specialists or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 7. СМК / сертификаты -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">7. СМК / сертификаты</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="has_qms" class="form-check-input" id="has_qms" {% if profile and profile.has_qms %}checked{% endif %}>
+                            <label class="form-check-label" for="has_qms">Имеется система менеджмента качества</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Стандарты СМК</label>
+                        <input type="text" name="qms_standards" class="form-control" value="{{ profile.qms_standards or '' }}" placeholder="ISO 9001, ГОСТ РВ и т.п.">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Краткое описание сертификатов</label>
+                        <textarea name="certifications_summary" class="form-control" rows="2">{{ profile.certifications_summary or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+
+                <hr>
+                <h6>Сертификаты (детально)</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Тип</th>
+                            <th>Номер</th>
+                            <th>Выдан</th>
+                            <th>Действует с</th>
+                            <th>Действует до</th>
+                            <th>Примечания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cert in certificates %}
+                        <tr>
+                            <td>{{ cert.cert_type }}</td>
+                            <td>{{ cert.number or '—' }}</td>
+                            <td>{{ cert.issued_by or '—' }}</td>
+                            <td>{{ cert.valid_from.strftime('%d.%m.%Y') if cert.valid_from else '—' }}</td>
+                            <td>{{ cert.valid_to.strftime('%d.%m.%Y') if cert.valid_to else '—' }}</td>
+                            <td>{{ cert.notes or '—' }}</td>
+                            <td>
+                                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/certificates/delete" class="d-inline">
+                                    <input type="hidden" name="certificate_id" value="{{ cert.id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить?')">Удалить</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/certificates/add">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <input type="text" name="cert_type" class="form-control form-control-sm" placeholder="Тип (ISO9001, ГОСТ РВ...)" required>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <input type="text" name="number" class="form-control form-control-sm" placeholder="Номер">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <input type="text" name="issued_by" class="form-control form-control-sm" placeholder="Выдан">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <input type="date" name="valid_from" class="form-control form-control-sm" placeholder="С">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <input type="date" name="valid_to" class="form-control form-control-sm" placeholder="До">
+                        </div>
+                        <div class="col-md-1 mb-2">
+                            <button type="submit" class="btn btn-sm btn-primary">Добавить</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12 mb-2">
+                            <input type="text" name="notes" class="form-control form-control-sm" placeholder="Примечания">
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </details>
+
+        <!-- 8. ГОЗ -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">8. ГОЗ</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="works_with_goz" class="form-check-input" id="works_with_goz" {% if profile and profile.works_with_goz %}checked{% endif %}>
+                            <label class="form-check-label" for="works_with_goz">Работает по ГОЗ</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Опыт работы по ГОЗ</label>
+                        <textarea name="goz_experience" class="form-control" rows="3">{{ profile.goz_experience or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Допуск к секретам</label>
+                        <select name="goz_secret_clearance" class="form-select">
+                            <option value="">— не указано —</option>
+                            <option value="true" {% if profile and profile.goz_secret_clearance == True %}selected{% endif %}>Да</option>
+                            <option value="false" {% if profile and profile.goz_secret_clearance == False %}selected{% endif %}>Нет</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 9. Опыт поставок -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">9. Опыт поставок</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="mb-3">
+                        <label class="form-label">Количество выполненных контрактов</label>
+                        <input type="number" name="executed_contracts_count" class="form-control" value="{{ profile.executed_contracts_count or 0 }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ключевые заказчики</label>
+                        <textarea name="key_customers" class="form-control" rows="3">{{ profile.key_customers or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Примеры аналогичных поставок</label>
+                        <textarea name="similar_deliveries" class="form-control" rows="3">{{ profile.similar_deliveries or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 10. Реквизиты банка -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">10. Реквизиты банка</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Название банка</label>
+                            <input type="text" name="bank_name" class="form-control" value="{{ profile.bank_name or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">БИК</label>
+                            <input type="text" name="bank_bik" class="form-control" value="{{ profile.bank_bik or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Расчетный счет</label>
+                            <input type="text" name="bank_account" class="form-control" value="{{ profile.bank_account or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Корр. счет</label>
+                            <input type="text" name="corr_account" class="form-control" value="{{ profile.corr_account or '' }}">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 11. Подписант -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">11. Подписант</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/profile">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">ФИО</label>
+                            <input type="text" name="signatory_fio" class="form-control" value="{{ profile.signatory_fio or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Должность</label>
+                            <input type="text" name="signatory_position" class="form-control" value="{{ profile.signatory_position or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Основание</label>
+                            <input type="text" name="signatory_basis" class="form-control" value="{{ profile.signatory_basis or '' }}" placeholder="на основании Устава/доверенности">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 12. Документы поставщика -->
+        <details class="card mb-3" open>
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">12. Документы поставщика</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/suppliers/{{ supplier.id }}/documents/upload" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Категория</label>
+                            <select name="category_id" class="form-select" required>
+                                <option value="">— выберите категорию —</option>
+                                {% for category in supplier_categories %}
+                                <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Файл</label>
+                            <input type="file" name="file" class="form-control" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Загрузить</button>
+                </form>
+
+                <hr>
+                <h6>Загруженные документы</h6>
+                {% if supplier_documents %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Файл</th>
+                            <th>Категория</th>
+                            <th>Статус</th>
+                            <th>Дата</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for doc in supplier_documents %}
+                        <tr>
+                            <td>{{ doc.original_filename }}</td>
+                            <td>{{ doc.category.name if doc.category else '—' }}</td>
+                            <td><span class="badge bg-{% if doc.status == 'DONE' %}success{% elif doc.status == 'ERROR' %}danger{% else %}warning{% endif %}">{{ doc.status }}</span></td>
+                            <td>{{ doc.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                            <td>
+                                {% if doc.status == 'DONE' %}
+                                <a href="/ui/documents/{{ doc.id }}/download" class="btn btn-sm btn-outline-primary" target="_blank">Скачать</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">Нет загруженных документов</p>
+                {% endif %}
+            </div>
+        </details>
+    </div>
+</body>
+</html>
+

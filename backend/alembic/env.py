@@ -1,12 +1,25 @@
+import sys
+from pathlib import Path
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-config = context.config
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Добавляем путь к проекту для импорта модулей
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-target_metadata = None
+# Импорт настроек и моделей
+from app.core.settings import settings
+from app.db.base import Base
+import app.models  # Импорт всех моделей для регистрации в Base.metadata
+
+config = context.config
+# Пропускаем fileConfig, так как в alembic.ini нет секций логирования
+
+# Используем database_url из настроек
+config.set_main_option("sqlalchemy.url", settings.database_url)
+
+# Указываем metadata для генерации миграций
+target_metadata = Base.metadata
 
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")
@@ -15,8 +28,9 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
+    # Используем database_url из настроек напрямую
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
+        {"sqlalchemy.url": settings.database_url},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

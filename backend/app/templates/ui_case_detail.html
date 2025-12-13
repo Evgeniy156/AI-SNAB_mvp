@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кейс {{ case.code }} - AI-SNAB</title>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .checklist-section {
+            margin-bottom: 1.5rem;
+        }
+        .checklist-item {
+            padding: 0.75rem;
+            border-left: 3px solid #dee2e6;
+            margin-bottom: 0.5rem;
+        }
+        .checklist-item.done {
+            border-left-color: #28a745;
+            background-color: #f8f9fa;
+        }
+        .checklist-item.na {
+            border-left-color: #6c757d;
+            background-color: #f8f9fa;
+        }
+        .checklist-group {
+            margin-left: 1rem;
+            margin-top: 0.5rem;
+        }
+        .error-block {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .section-anchor {
+            scroll-margin-top: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Навигация -->
+        <div class="mb-3">
+            <a href="/ui/cases" class="btn btn-secondary">← К списку кейсов</a>
+        </div>
+
+        <!-- Заголовок кейса -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="mb-0">{{ case.code }} — {{ case.title }}</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Статус:</strong> <span class="badge bg-secondary">{{ case.status }}</span></p>
+                        <p><strong>Этап процедуры:</strong> <span class="badge bg-info">{{ case.procedure_stage }}</span></p>
+                        <p><strong>Создан:</strong> {{ case.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Обновлен:</strong> {{ case.updated_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Сообщение об ошибке -->
+        {% if request.query_params.get('error') %}
+        <div class="alert alert-danger" role="alert">
+            {{ request.query_params.get('error') }}
+        </div>
+        {% endif %}
+
+        <!-- Сообщение об успехе -->
+        {% if request.query_params.get('success') %}
+        <div class="alert alert-success" role="alert">
+            {{ request.query_params.get('success') }}
+        </div>
+        {% endif %}
+
+        <!-- Кнопки генерации и экспорта -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Генерация документов и экспорт</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <form method="POST" action="/ui/cases/{{ case.id }}/generate-doc" style="display: inline;">
+                            <input type="hidden" name="template_key" value="NMC_REFERENCE">
+                            <button type="submit" class="btn btn-primary">Сгенерировать справку НМЦ</button>
+                        </form>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <form method="POST" action="/ui/cases/{{ case.id }}/export-zip" style="display: inline;">
+                            <input type="hidden" name="mode" value="standard">
+                            <button type="submit" class="btn btn-success">Экспорт пакета (standard)</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 0. Основание закупки (стартовый пакет) -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">0. Основание закупки (стартовый пакет)</h5>
+            </div>
+            <div class="card-body">
+                {% if basis_items %}
+                    <ol class="list-group list-group-numbered">
+                        {% for item in basis_items %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ item.template_item.title if item.template_item else '—' }}</h6>
+                                    {% if item.template_item and item.template_item.hint %}
+                                    <small class="text-muted">{{ item.template_item.hint }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <form method="POST" action="/ui/cases/{{ case.id }}/basis/update" class="mt-2">
+                                {% if status_filter %}
+                                <input type="hidden" name="status_filter" value="{{ status_filter }}">
+                                {% endif %}
+                                <input type="hidden" name="case_checklist_item_id" value="{{ item.id }}">
+                                <div class="row mb-2">
+                                    <div class="col-md-2 mb-2">
+                                        <label class="form-label form-label-sm">Статус</label>
+                                        <select name="status" class="form-select form-select-sm">
+                                            <option value="TODO" {% if item.status == 'TODO' %}selected{% endif %}>TODO</option>
+                                            <option value="DONE" {% if item.status == 'DONE' %}selected{% endif %}>DONE</option>
+                                            <option value="NA" {% if item.status == 'NA' %}selected{% endif %}>NA</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <label class="form-label form-label-sm">Номер документа</label>
+                                        <input type="text" name="doc_number" class="form-control form-control-sm" placeholder="№ документа" value="{{ item.doc_number or '' }}">
+                                    </div>
+                                    <div class="col-md-3 mb-2">
+                                        <label class="form-label form-label-sm">Дата документа</label>
+                                        <input type="date" name="doc_date" class="form-control form-control-sm" value="{{ item.doc_date.strftime('%Y-%m-%d') if item.doc_date else '' }}">
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label class="form-label form-label-sm">Комментарий</label>
+                                        <input type="text" name="comment" class="form-control form-control-sm" placeholder="Комментарий" value="{{ item.comment or '' }}">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <button type="submit" class="btn btn-sm btn-primary">Сохранить</button>
+                                    </div>
+                                </div>
+                            </form>
+                            
+                            <form method="POST" action="/ui/cases/{{ case.id }}/checklist/attach" class="mt-2">
+                                {% if status_filter %}
+                                <input type="hidden" name="status_filter" value="{{ status_filter }}">
+                                {% endif %}
+                                <input type="hidden" name="case_checklist_item_id" value="{{ item.id }}">
+                                <div class="row">
+                                    <div class="col-md-8 mb-2">
+                                        <select name="document_id" class="form-select form-select-sm">
+                                            <option value="">— выбрать документ —</option>
+                                            {% for doc in case_documents %}
+                                            <option value="{{ doc.id }}">{{ doc.original_filename }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Прикрепить</button>
+                                    </div>
+                                </div>
+                            </form>
+                            
+                            {% if item.documents %}
+                            <div class="mt-2">
+                                <small><strong>Прикреплённые документы:</strong></small>
+                                <ul class="list-unstyled ms-3">
+                                    {% for link in item.documents %}
+                                    <li>
+                                        <a href="/ui/documents/{{ link.document.id }}/download" target="_blank">{{ link.document.original_filename }}</a>
+                                        <form method="POST" action="/ui/cases/{{ case.id }}/checklist/detach" class="d-inline">
+                                            {% if status_filter %}
+                                            <input type="hidden" name="status_filter" value="{{ status_filter }}">
+                                            {% endif %}
+                                            <input type="hidden" name="case_checklist_item_id" value="{{ item.id }}">
+                                            <input type="hidden" name="document_id" value="{{ link.document.id }}">
+                                            <button type="submit" class="btn btn-sm btn-link text-danger p-0 ms-2">Открепить</button>
+                                        </form>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ol>
+                {% else %}
+                    <p class="text-muted">Нет пунктов основания закупки</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Кнопка активации закупки -->
+        <div class="card mb-4" id="basis">
+            <div class="card-body">
+                {% if case.is_activated %}
+                <div class="alert alert-success mb-0">
+                    <strong>✅ Закупка активирована</strong>
+                    {% if case.activated_at %}
+                    <br><small>Дата активации: {{ case.activated_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    {% endif %}
+                </div>
+                {% else %}
+                <form method="POST" action="/ui/cases/{{ case.id }}/activate">
+                    <button type="submit" class="btn btn-lg btn-success">Активировать закупку</button>
+                    <small class="d-block mt-2 text-muted">Заполните все обязательные пункты основания (номер, дата, документ) и нажмите для активации</small>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Предупреждение, если закупка не активирована -->
+        {% if not case.is_activated %}
+        <div class="alert alert-warning mb-4" role="alert">
+            <strong>⚠️ Закупка не активирована.</strong> Заполните основание (номер/дата + документы) и нажмите «Активировать закупку».
+        </div>
+        {% endif %}
+
+        <!-- 1. Параметры закупки -->
+        {% if case.is_activated %}
+        <details class="card mb-3" open>
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">1. Параметры закупки</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/cases/{{ case.id }}/procurement/update">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Тип закупки</label>
+                            <select name="procurement_type" class="form-select" required>
+                                <option value="GOODS_SUPPLY" {% if case.procurement_type == 'GOODS_SUPPLY' %}selected{% endif %}>Поставка товаров</option>
+                                <option value="MANUFACTURE_AND_SUPPLY" {% if case.procurement_type == 'MANUFACTURE_AND_SUPPLY' %}selected{% endif %}>Изготовление и поставка</option>
+                                <option value="SERVICES" {% if case.procurement_type == 'SERVICES' %}selected{% endif %}>Услуги</option>
+                                <option value="WORKS" {% if case.procurement_type == 'WORKS' %}selected{% endif %}>Работы</option>
+                                <option value="OTHER" {% if case.procurement_type == 'OTHER' %}selected{% endif %}>Прочее</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Этап процедуры</label>
+                            <input type="text" class="form-control" value="{{ case.procedure_stage }}" readonly>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Предмет закупки</label>
+                        <textarea name="subject" class="form-control" rows="3">{{ case.subject or '' }}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Инициатор (отдел)</label>
+                            <input type="text" name="initiator_department" class="form-control" value="{{ case.initiator_department or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Планируемый срок</label>
+                            <input type="date" name="planned_deadline" class="form-control" value="{{ case.planned_deadline.strftime('%Y-%m-%d') if case.planned_deadline else '' }}">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </details>
+
+        <!-- 2. Кандидаты и ранк -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">2. Кандидаты и ранк-анализ</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/cases/{{ case.id }}/candidates/add" class="mb-3">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Выбрать поставщика</label>
+                            <select name="supplier_id" class="form-select">
+                                <option value="">— или ввести вручную —</option>
+                                {% for supplier in all_suppliers %}
+                                <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Название организации</label>
+                            <input type="text" name="org_name" class="form-control" placeholder="Если поставщик не выбран">
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">ИНН</label>
+                            <input type="text" name="inn" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Email</label>
+                            <input type="email" name="contact_email" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Телефон</label>
+                            <input type="text" name="contact_phone" class="form-control">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Добавить кандидата</button>
+                </form>
+                
+                <form method="POST" action="/ui/cases/{{ case.id }}/candidates/recompute-rank" class="mb-3">
+                    <button type="submit" class="btn btn-outline-secondary">Пересчитать ранк для всех</button>
+                </form>
+
+                {% if candidates %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Организация</th>
+                            <th>Ранк</th>
+                            <th>Объяснение</th>
+                            <th>Статус</th>
+                            <th>Контакты</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for candidate in candidates %}
+                        <tr>
+                            <td>
+                                {% if candidate.supplier_id %}
+                                <a href="/ui/suppliers/{{ candidate.supplier_id }}">{{ candidate.org_name }}</a>
+                                {% else %}
+                                {{ candidate.org_name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if candidate.rank_score is not none %}
+                                <strong>{{ "%.1f"|format(candidate.rank_score) }}</strong>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                            <td><small>{{ candidate.rank_explanation or '—' }}</small></td>
+                            <td><span class="badge bg-secondary">{{ candidate.status }}</span></td>
+                            <td>
+                                {% if candidate.contact_email %}{{ candidate.contact_email }}{% endif %}
+                                {% if candidate.contact_phone %} / {{ candidate.contact_phone }}{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">Нет кандидатов. Добавьте первого кандидата выше.</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <!-- 3. Запрос КП (RFQ журнал) -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">3. Запрос КП (RFQ журнал)</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/cases/{{ case.id }}/rfq/create" class="mb-3">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Кандидат</label>
+                            <select name="candidate_id" class="form-select" required>
+                                <option value="">— выберите —</option>
+                                {% for candidate in candidates %}
+                                <option value="{{ candidate.id }}">{{ candidate.org_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Канал</label>
+                            <select name="channel" class="form-select" required>
+                                <option value="EMAIL">Email</option>
+                                <option value="PHONE">Телефон</option>
+                                <option value="PORTAL">Портал</option>
+                                <option value="OTHER">Прочее</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Результат</label>
+                            <select name="result" class="form-select">
+                                <option value="SENT">Отправлено</option>
+                                <option value="RECEIVED_OFFER">Получено КП</option>
+                                <option value="REFUSAL">Отказ</option>
+                                <option value="NO_RESPONSE">Нет ответа</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label">Дата отправки</label>
+                            <input type="datetime-local" name="sent_at" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Заметки</label>
+                            <textarea name="notes" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Документ подтверждения</label>
+                            <select name="evidence_document_id" class="form-select">
+                                <option value="">— выбрать из документов кейса —</option>
+                                {% for doc in case_documents %}
+                                {% if doc.category and doc.category.key == 'RFQ_EVIDENCE' %}
+                                <option value="{{ doc.id }}">{{ doc.original_filename }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Сначала загрузите документ в секцию "Документы"</small>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Зафиксировать отправку</button>
+                </form>
+
+                {% if rfq_requests %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Кандидат</th>
+                            <th>Канал</th>
+                            <th>Дата</th>
+                            <th>Результат</th>
+                            <th>Подтверждение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rfq in rfq_requests %}
+                        <tr>
+                            <td>{{ rfq.candidate.org_name }}</td>
+                            <td>{{ rfq.channel }}</td>
+                            <td>{{ rfq.sent_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                            <td><span class="badge bg-{% if rfq.result == 'RECEIVED_OFFER' %}success{% elif rfq.result == 'REFUSAL' %}danger{% else %}warning{% endif %}">{{ rfq.result }}</span></td>
+                            <td>
+                                {% if rfq.evidence_document %}
+                                <a href="/ui/documents/{{ rfq.evidence_document.id }}/download" target="_blank">{{ rfq.evidence_document.original_filename }}</a>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">Нет записей об отправке запросов КП</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <!-- 4. Коммерческие предложения (КП) -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">4. Коммерческие предложения (КП)</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/cases/{{ case.id }}/offers/add" class="mb-3">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Кандидат</label>
+                            <select name="candidate_id" class="form-select" required>
+                                <option value="">— выберите —</option>
+                                {% for candidate in candidates %}
+                                <option value="{{ candidate.id }}">{{ candidate.org_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label">Цена (руб.)</label>
+                            <input type="number" name="price_total" class="form-control" step="0.01" required>
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label">Срок (дней)</label>
+                            <input type="number" name="lead_time_days" class="form-control">
+                        </div>
+                        <div class="col-md-2 mb-2">
+                            <label class="form-label">Действительно до</label>
+                            <input type="date" name="valid_until" class="form-control">
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Файл КП</label>
+                            <select name="document_id" class="form-select">
+                                <option value="">— выбрать из документов —</option>
+                                {% for doc in case_documents %}
+                                {% if doc.category and doc.category.key == 'KP' %}
+                                <option value="{{ doc.id }}">{{ doc.original_filename }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Сначала загрузите КП в секцию "Документы"</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Условия поставки</label>
+                            <textarea name="delivery_terms" class="form-control" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">Условия оплаты</label>
+                            <textarea name="payment_terms" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Добавить КП</button>
+                </form>
+
+                {% if commercial_offers %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Кандидат</th>
+                            <th>Цена</th>
+                            <th>Срок</th>
+                            <th>Файл</th>
+                            <th>Дата</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for offer in commercial_offers %}
+                        <tr>
+                            <td>{{ offer.candidate.org_name }}</td>
+                            <td><strong>{{ "%.2f"|format(offer.price_total) }} {{ offer.currency }}</strong></td>
+                            <td>{{ offer.lead_time_days or '—' }} дней</td>
+                            <td>
+                                {% if offer.document %}
+                                <a href="/ui/documents/{{ offer.document.id }}/download" target="_blank">{{ offer.document.original_filename }}</a>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                            <td>{{ offer.created_at.strftime('%d.%m.%Y') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">Нет коммерческих предложений</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <!-- 5. НМЦ и валидация -->
+        <details class="card mb-3" open>
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">5. НМЦ и валидация</h5>
+            </summary>
+            <div class="card-body">
+                {% if case.nmc_avg_price is not none %}
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <p><strong>НМЦ (средняя):</strong><br>{{ "%.2f"|format(case.nmc_avg_price) }} руб.</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Количество КП:</strong><br>{{ case.offers_count }}</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Коэффициент валидации:</strong><br>{{ "%.2f"|format(case.validation_coeff * 100) if case.validation_coeff else '—' }}%</p>
+                    </div>
+                    <div class="col-md-3">
+                        {% if case.is_validation_ok %}
+                        <div class="alert alert-success mb-0">
+                            <strong>✅ Валидация OK</strong>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning mb-0">
+                            <strong>⚠️ Риск</strong><br>
+                            <small>Нужно ≥3 КП и coeff ≤ 33%</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">Добавьте минимум 3 КП для расчёта НМЦ</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <!-- 6. Проверка СБ -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">6. Проверка СБ</h5>
+            </summary>
+            <div class="card-body">
+                <form method="POST" action="/ui/cases/{{ case.id }}/security-review/update" class="mb-3">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Поставщик</label>
+                            <select name="supplier_id" class="form-select" required>
+                                <option value="">— выберите —</option>
+                                {% for candidate in candidates %}
+                                {% if candidate.supplier_id %}
+                                <option value="{{ candidate.supplier_id }}">{{ candidate.org_name }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label class="form-label">Статус</label>
+                            <select name="status" class="form-select" required>
+                                <option value="NOT_STARTED">Не начато</option>
+                                <option value="IN_PROGRESS">В процессе</option>
+                                <option value="APPROVED">Одобрено</option>
+                                <option value="REJECTED">Отклонено</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5 mb-2">
+                            <label class="form-label">Документ заключения</label>
+                            <select name="document_id" class="form-select">
+                                <option value="">— выбрать из документов —</option>
+                                {% for doc in case_documents %}
+                                {% if doc.category and doc.category.key == 'SB_CONCLUSION' %}
+                                <option value="{{ doc.id }}">{{ doc.original_filename }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Комментарий</label>
+                        <textarea name="comment" class="form-control" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+
+                {% if security_reviews %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Поставщик</th>
+                            <th>Статус</th>
+                            <th>Дата проверки</th>
+                            <th>Комментарий</th>
+                            <th>Документ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for review in security_reviews %}
+                        <tr>
+                            <td>{{ review.supplier.name }}</td>
+                            <td>
+                                <span class="badge bg-{% if review.status == 'APPROVED' %}success{% elif review.status == 'REJECTED' %}danger{% else %}warning{% endif %}">
+                                    {{ review.status }}
+                                </span>
+                            </td>
+                            <td>{{ review.reviewed_at.strftime('%d.%m.%Y') if review.reviewed_at else '—' }}</td>
+                            <td>{{ review.comment or '—' }}</td>
+                            <td>
+                                {% if review.document %}
+                                <a href="/ui/documents/{{ review.document.id }}/download" target="_blank">{{ review.document.original_filename }}</a>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">Нет записей проверки СБ</p>
+                {% endif %}
+            </div>
+        </details>
+
+        <!-- 7. Выбор победителя -->
+        <details class="card mb-3">
+            <summary class="card-header" style="cursor: pointer;">
+                <h5 class="mb-0">7. Выбор победителя</h5>
+            </summary>
+            <div class="card-body">
+                {% if case.selected_supplier_id %}
+                <div class="alert alert-success">
+                    <strong>Победитель выбран:</strong> {{ case.supplier.name if case.supplier else '—' }}
+                    {% if case.selection_note %}
+                    <br><small>{{ case.selection_note }}</small>
+                    {% endif %}
+                </div>
+                {% else %}
+                <form method="POST" action="/ui/cases/{{ case.id }}/select-supplier">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Поставщик-победитель</label>
+                            <select name="supplier_id" class="form-select" required>
+                                <option value="">— выберите —</option>
+                                {% for candidate in candidates %}
+                                {% if candidate.supplier_id %}
+                                <option value="{{ candidate.supplier_id }}">{{ candidate.org_name }}</option>
+                                {% endif %}
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Требуется APPROVED от СБ</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Примечание</label>
+                            <textarea name="note" class="form-control" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Утвердить победителя</button>
+                </form>
+                {% endif %}
+            </div>
+        </details>
+        {% endif %}
+
+        <!-- Блок ЕПоЗ -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Выбор пункта ЕПоЗ</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/ui/cases/{{ case.id }}/epoz/update">
+                    {% if status_filter %}
+                    <input type="hidden" name="status_filter" value="{{ status_filter }}">
+                    {% endif %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="epoz_clause" class="form-label">Пункт ЕПоЗ</label>
+                            <select class="form-select" id="epoz_clause" name="epoz_clause">
+                                <option value="">— не выбран —</option>
+                                <option value="6.6.2.1" {% if case.epoz_clause == '6.6.2.1' %}selected{% endif %}>6.6.2.1</option>
+                                <option value="6.6.2.2" {% if case.epoz_clause == '6.6.2.2' %}selected{% endif %}>6.6.2.2</option>
+                                <option value="6.6.2.3 (1)" {% if case.epoz_clause == '6.6.2.3 (1)' %}selected{% endif %}>6.6.2.3 (1)</option>
+                                <option value="6.6.2.3 (5)" {% if case.epoz_clause == '6.6.2.3 (5)' %}selected{% endif %}>6.6.2.3 (5)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Чек-лист закупки -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Чек-лист закупочной процедуры</h5>
+            </div>
+            <div class="card-body">
+                <!-- Прогресс и фильтры -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p class="mb-0">
+                            <strong>Выполнено:</strong> 
+                            <span class="badge bg-success">{{ done_required }}</span> / 
+                            <span class="badge bg-secondary">{{ total_required }}</span> обязательных
+                        </p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group" role="group">
+                            <a href="/ui/cases/{{ case.id }}" class="btn btn-sm {% if not status_filter %}btn-primary{% else %}btn-outline-primary{% endif %}">Все</a>
+                            <a href="/ui/cases/{{ case.id }}?status=TODO" class="btn btn-sm {% if status_filter == 'TODO' %}btn-primary{% else %}btn-outline-primary{% endif %}">TODO</a>
+                            <a href="/ui/cases/{{ case.id }}?status=DONE" class="btn btn-sm {% if status_filter == 'DONE' %}btn-primary{% else %}btn-outline-primary{% endif %}">DONE</a>
+                            <a href="/ui/cases/{{ case.id }}?status=NA" class="btn btn-sm {% if status_filter == 'NA' %}btn-primary{% else %}btn-outline-primary{% endif %}">NA</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Быстрые ссылки по секциям -->
+                <div class="mb-3">
+                    <strong>Секции:</strong>
+                    {% for section_key in sections.keys() %}
+                    <a href="#section-{{ loop.index }}" class="btn btn-sm btn-outline-secondary">{{ section_key.split('.')[0] }}</a>
+                    {% endfor %}
+                    {% if error_todo_count > 0 %}
+                    <a href="#error-block" class="btn btn-sm btn-warning">⚠️ Риски: {{ error_todo_count }}</a>
+                    {% endif %}
+                </div>
+
+                <!-- Пункты чек-листа по секциям -->
+                {% for section_key, section_items in sections.items() %}
+                <details class="checklist-section section-anchor" id="section-{{ loop.index }}" open>
+                    <summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 0.5rem;">
+                        {{ section_key }}
+                    </summary>
+                    
+                    {% set current_group = None %}
+                    {% for item in section_items %}
+                        {% if item.template_item.group_title != current_group %}
+                            {% if current_group %}
+                                </div> <!-- закрываем предыдущую группу -->
+                            {% endif %}
+                            {% if item.template_item.group_title %}
+                            <div class="checklist-group">
+                                <strong>{{ item.template_item.group_title }}</strong>
+                            {% endif %}
+                            {% set current_group = item.template_item.group_title %}
+                        {% endif %}
+                        
+                        <div class="checklist-item {% if item.status == 'DONE' %}done{% elif item.status == 'NA' %}na{% endif %}">
+                            <form method="POST" action="/ui/cases/{{ case.id }}/checklist/update" class="d-inline">
+                                {% if status_filter %}
+                                <input type="hidden" name="status_filter" value="{{ status_filter }}">
+                                {% endif %}
+                                <input type="hidden" name="case_checklist_item_id" value="{{ item.id }}">
+                                
+                                <div class="row align-items-start">
+                                    <div class="col-md-1">
+                                        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                            <option value="TODO" {% if item.status == 'TODO' %}selected{% endif %}>TODO</option>
+                                            <option value="DONE" {% if item.status == 'DONE' %}selected{% endif %}>DONE</option>
+                                            <option value="NA" {% if item.status == 'NA' %}selected{% endif %}>NA</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <div class="form-check">
+                                            <label class="form-check-label">
+                                                {{ item.template_item.title }}
+                                                {% if item.template_item.is_required %}
+                                                <span class="text-danger">*</span>
+                                                {% endif %}
+                                            </label>
+                                        </div>
+                                        {% if item.template_item.hint %}
+                                        <small class="text-muted">{{ item.template_item.hint }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4">
+                                        <textarea name="comment" class="form-control form-control-sm" rows="2" placeholder="Комментарий">{{ item.comment or '' }}</textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-2">
+                                    <div class="col-md-12">
+                                        <button type="submit" class="btn btn-sm btn-primary">Сохранить</button>
+                                        
+                                        <!-- Прикрепление документов -->
+                                        <div class="mt-2">
+                                            <div class="input-group input-group-sm">
+                                                <select class="form-select" id="doc-select-{{ item.id }}">
+                                                    <option value="">— выбрать документ —</option>
+                                                    {% for doc in case_documents %}
+                                                    <option value="{{ doc.id }}">{{ doc.original_filename }} ({{ doc.category.name }})</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <button type="button" class="btn btn-outline-secondary" onclick="attachDocument('{{ item.id }}', '{{ case.id }}', '{{ status_filter or '' }}')">Прикрепить</button>
+                                            </div>
+                                            
+                                            <!-- Список прикрепленных документов -->
+                                            {% if item.documents %}
+                                            <div class="mt-2">
+                                                <small><strong>Прикрепленные документы:</strong></small>
+                                                <ul class="list-unstyled">
+                                                    {% for link in item.documents %}
+                                                    <li>
+                                                        <a href="/ui/documents/{{ link.document.id }}/download" target="_blank">{{ link.document.original_filename }}</a>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="detachDocument('{{ item.id }}', '{{ link.document.id }}', '{{ case.id }}', '{{ status_filter or '' }}')">Открепить</button>
+                                                    </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    {% endfor %}
+                    {% if current_group %}
+                    </div> <!-- закрываем последнюю группу -->
+                    {% endif %}
+                </details>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Блок "Проверьте закупку на ошибки" -->
+        {% if error_items %}
+        <div class="card mb-4 error-block" id="error-block">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0">⚠️ Проверьте закупку на ошибки</h5>
+                {% if error_todo_count > 0 %}
+                <p class="mb-0"><strong>Есть риски: {{ error_todo_count }} пунктов требуют внимания</strong></p>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% for item in error_items %}
+                <div class="checklist-item {% if item.status == 'DONE' %}done{% elif item.status == 'NA' %}na{% endif %}">
+                    <form method="POST" action="/ui/cases/{{ case.id }}/checklist/update" class="d-inline">
+                        {% if status_filter %}
+                        <input type="hidden" name="status_filter" value="{{ status_filter }}">
+                        {% endif %}
+                        <input type="hidden" name="case_checklist_item_id" value="{{ item.id }}">
+                        
+                        <div class="row align-items-start">
+                            <div class="col-md-1">
+                                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                    <option value="TODO" {% if item.status == 'TODO' %}selected{% endif %}>TODO</option>
+                                    <option value="DONE" {% if item.status == 'DONE' %}selected{% endif %}>DONE</option>
+                                    <option value="NA" {% if item.status == 'NA' %}selected{% endif %}>NA</option>
+                                </select>
+                            </div>
+                            <div class="col-md-7">
+                                <div class="form-check">
+                                    <label class="form-check-label">
+                                        <strong>{{ item.template_item.title }}</strong>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <textarea name="comment" class="form-control form-control-sm" rows="2" placeholder="Комментарий">{{ item.comment or '' }}</textarea>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-12">
+                                <button type="submit" class="btn btn-sm btn-primary">Сохранить</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Контрольные вопросы (MVP - только текст) -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Контрольные вопросы</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    <em>Этот раздел содержит контрольные вопросы для проверки закупочной процедуры. 
+                    Ответы на вопросы помогают выявить потенциальные проблемы и риски.</em>
+                </p>
+                <ul>
+                    <li>Соответствует ли закупка требованиям законодательства?</li>
+                    <li>Правильно ли определен предмет закупки?</li>
+                    <li>Соответствует ли выбранный способ закупки требованиям?</li>
+                    <li>Проведена ли проверка поставщика на соответствие требованиям?</li>
+                    <li>Соблюдены ли сроки проведения закупки?</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function attachDocument(itemId, caseId, statusFilter) {
+            const select = document.getElementById('doc-select-' + itemId);
+            const docId = select.value;
+            if (!docId) {
+                alert('Выберите документ');
+                return;
+            }
+            
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/ui/cases/' + caseId + '/checklist/attach';
+            
+            const itemInput = document.createElement('input');
+            itemInput.type = 'hidden';
+            itemInput.name = 'case_checklist_item_id';
+            itemInput.value = itemId;
+            form.appendChild(itemInput);
+            
+            const docInput = document.createElement('input');
+            docInput.type = 'hidden';
+            docInput.name = 'document_id';
+            docInput.value = docId;
+            form.appendChild(docInput);
+            
+            if (statusFilter) {
+                const filterInput = document.createElement('input');
+                filterInput.type = 'hidden';
+                filterInput.name = 'status_filter';
+                filterInput.value = statusFilter;
+                form.appendChild(filterInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+        
+        function detachDocument(itemId, docId, caseId, statusFilter) {
+            if (!confirm('Открепить документ?')) {
+                return;
+            }
+            
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/ui/cases/' + caseId + '/checklist/detach';
+            
+            const itemInput = document.createElement('input');
+            itemInput.type = 'hidden';
+            itemInput.name = 'case_checklist_item_id';
+            itemInput.value = itemId;
+            form.appendChild(itemInput);
+            
+            const docInput = document.createElement('input');
+            docInput.type = 'hidden';
+            docInput.name = 'document_id';
+            docInput.value = docId;
+            form.appendChild(docInput);
+            
+            if (statusFilter) {
+                const filterInput = document.createElement('input');
+                filterInput.type = 'hidden';
+                filterInput.name = 'status_filter';
+                filterInput.value = statusFilter;
+                form.appendChild(filterInput);
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
+</body>
+</html>
+

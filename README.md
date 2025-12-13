@@ -654,10 +654,94 @@ docker compose logs app --tail 200
 - ✅ Guardrails: "нет данных в системе" при отсутствии данных
 - ✅ Тесты с моками httpx (не требуют реального Ollama)
 
-### Step 9 — Генерация документов + экспорт ZIP
-- Шаблоны docx (MinIO)
-- Генерация приложений/форм на основе контекста поставщика
-- Экспорт ZIP (документы + manifest.json + хэши)
+### Step 9 — Генерация документов + экспорт ZIP ✅
+- ✅ Шаблоны docx в MinIO (bucket `aisnab-templates`)
+- ✅ Генерация "Справки НМЦ" из шаблона `NMC_REFERENCE`
+- ✅ Экспорт ZIP (standard) с manifest.json и SHA256
+- ✅ UI кнопки на странице кейса
+- ✅ API эндпоинты: `POST /api/documents/generate`, `POST /api/cases/{id}/export-zip`
+- ✅ Тесты с моками MinIO
+
+#### Как использовать
+
+**1. Загрузка шаблона в MinIO:**
+
+Создайте bucket `aisnab-templates` (создаётся автоматически при старте) и загрузите шаблон:
+
+```bash
+# Через MinIO UI (http://localhost:9000)
+# Или через mc (MinIO Client):
+mc alias set local http://localhost:9000 minioadmin minioadmin
+mc mb local/aisnab-templates
+mc cp templates/NMC_REFERENCE.docx local/aisnab-templates/templates/NMC_REFERENCE.docx
+```
+
+**2. Создание записи Template в БД:**
+
+```sql
+INSERT INTO templates (id, key, doc_type, name, storage_key, is_active, created_at)
+VALUES (
+    gen_random_uuid(),
+    'NMC_REFERENCE',
+    'CASE',
+    'Справка НМЦ',
+    'templates/NMC_REFERENCE.docx',
+    true,
+    NOW()
+);
+```
+
+**3. Использование через UI:**
+
+1. Откройте страницу кейса: `http://localhost:8080/ui/cases/{case_id}`
+2. В блоке "Генерация документов и экспорт" нажмите:
+   - **"Сгенерировать справку НМЦ"** → создаст docx документ в документах кейса
+   - **"Экспорт пакета (standard)"** → создаст ZIP архив с manifest.json
+
+**4. Использование через API:**
+
+```bash
+# Генерация документа
+curl -X POST http://localhost:8080/api/documents/generate \
+  -H "Content-Type: application/json" \
+  -d '{"case_id": "...", "template_key": "NMC_REFERENCE"}'
+
+# Экспорт ZIP
+curl -X POST http://localhost:8080/api/cases/{case_id}/export-zip \
+  -H "Content-Type: application/json" \
+  -d '{"mode": "standard"}'
+```
+
+**5. Формат шаблона:**
+
+Шаблон docx должен содержать плейсхолдеры:
+- `[[CASE_CODE]]` → код кейса
+- `[[CASE_TITLE]]` → название кейса
+- `[[NMC_AVG_PRICE]]` → средняя цена НМЦ
+- `[[VALIDATION_COEFF]]` → коэффициент валидации
+- `[[OFFERS_COUNT]]` → количество предложений
+- `[[SELECTED_SUPPLIER_NAME]]` → имя выбранного поставщика
+
+**6. Формат manifest.json в ZIP:**
+
+```json
+{
+  "case_id": "...",
+  "case_code": "...",
+  "exported_at": "2025-12-13T18:00:00",
+  "mode": "standard",
+  "files": [
+    {
+      "document_id": "...",
+      "filename": "...",
+      "category_key": "...",
+      "storage_key": "...",
+      "sha256": "...",
+      "size_bytes": 12345
+    }
+  ]
+}
+```
 
 ### Step 10 — E2E тест
 - "кейс → КП → НМЦ → экспорт"

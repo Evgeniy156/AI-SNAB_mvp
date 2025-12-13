@@ -997,6 +997,64 @@ def ui_documents_download(
         raise HTTPException(status_code=500, detail=f"Ошибка генерации ссылки: {str(e)}")
 
 
+@ui_router.post("/cases/{case_id}/generate-doc", response_class=RedirectResponse, status_code=303)
+def ui_generate_doc(
+    request: Request,
+    case_id: uuid.UUID,
+    template_key: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Генерация документа по шаблону."""
+    try:
+        from app.services.agent_tools import generate_doc
+        result = generate_doc(db, case_id, template_key)
+        
+        if not result["ok"]:
+            return RedirectResponse(
+                url=f"/ui/cases/{case_id}?error={result.get('reason', 'Ошибка генерации')}",
+                status_code=303
+            )
+        
+        return RedirectResponse(
+            url=f"/ui/cases/{case_id}?success=Документ успешно сгенерирован",
+            status_code=303
+        )
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/ui/cases/{case_id}?error={str(e)}",
+            status_code=303
+        )
+
+
+@ui_router.post("/cases/{case_id}/export-zip", response_class=RedirectResponse, status_code=303)
+def ui_export_zip(
+    request: Request,
+    case_id: uuid.UUID,
+    mode: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Экспорт кейса в ZIP архив."""
+    try:
+        from app.services.agent_tools import export_zip
+        result = export_zip(db, case_id, mode)
+        
+        if not result["ok"]:
+            return RedirectResponse(
+                url=f"/ui/cases/{case_id}?error={result.get('reason', 'Ошибка экспорта')}",
+                status_code=303
+            )
+        
+        return RedirectResponse(
+            url=f"/ui/cases/{case_id}?success=ZIP архив успешно создан",
+            status_code=303
+        )
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/ui/cases/{case_id}?error={str(e)}",
+            status_code=303
+        )
+
+
 @ui_router.get("/document-categories", response_class=HTMLResponse)
 def ui_document_categories(request: Request, db: Session = Depends(get_db), error: str | None = None):
     """Страница управления категориями документов."""
