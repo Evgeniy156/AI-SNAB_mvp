@@ -15,6 +15,8 @@ services:
   minio:
     image: minio/minio:latest
     container_name: aisnab_minio
+    env_file:
+      - ../.env
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
@@ -35,6 +37,21 @@ services:
       - aisnab_redis_data:/data
     restart: unless-stopped
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aisnab_ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
   app:
     build:
       context: ..
@@ -51,6 +68,23 @@ services:
       - database
       - minio
       - redis
+      - ollama
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: aisnab_worker
+    env_file:
+      - ../.env
+    volumes:
+      - ../backend/app:/app/backend/app
+      - aisnab_local_data:/data
+    depends_on:
+      - database
+      - redis
+    command: bash -lc "cd /app/backend && rq worker -u redis://redis:6379/0"
     restart: unless-stopped
 
   web-proxy:
@@ -69,3 +103,4 @@ volumes:
   aisnab_minio_data:
   aisnab_redis_data:
   aisnab_local_data:
+  ollama:
