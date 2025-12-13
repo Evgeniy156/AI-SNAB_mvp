@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # MinIO / S3
     # Use service name in Docker, localhost for local development
     minio_endpoint: str = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
+    # Public endpoint for presigned URLs (accessible from browser)
+    minio_public_endpoint: str = os.getenv("MINIO_PUBLIC_ENDPOINT", "http://localhost:9000")
     minio_access_key: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
     minio_secret_key: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
     minio_bucket_files: str = os.getenv("MINIO_BUCKET_FILES", "aisnab-files")
@@ -30,7 +32,8 @@ class Settings(BaseSettings):
     redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
     # LLM (Ollama)
-    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    # Use service name in Docker, localhost for local development
+    ollama_url: str = os.getenv("OLLAMA_URL", "http://ollama:11434")
     chat_model: str = os.getenv("CHAT_MODEL", "qwen2.5:7b-instruct")
 
     # App
