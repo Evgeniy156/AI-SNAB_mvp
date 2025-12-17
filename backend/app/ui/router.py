@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Form, Depends, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.db.session import get_db
 from app.services.suppliers import list_suppliers, create_supplier
 from app.services.supplier_profile import (
@@ -48,6 +48,7 @@ from fastapi.exceptions import HTTPException
 import uuid
 
 templates = Jinja2Templates(directory="app/templates")
+
 ui_router = APIRouter(prefix="/ui", tags=["ui"])
 
 
@@ -308,13 +309,25 @@ def ui_supplier_documents_upload(
 
 
 @ui_router.get("/cases", response_class=HTMLResponse)
-def ui_cases(request: Request, db: Session = Depends(get_db), error: str | None = None):
+def ui_cases(
+    request: Request,
+    db: Session = Depends(get_db),
+    error: str | None = None,
+    archived: str | None = Query(None)
+):
     """Страница списка закупок."""
-    cases = list_cases(db)
+    show_archived = archived == "1"
+    # Если show_archived=True, показываем только архивные, иначе только неархивные
+    if show_archived:
+        # Показываем только архивные
+        cases = db.query(Case).options(joinedload(Case.supplier)).filter(Case.archived == True).order_by(Case.created_at.desc()).all()
+    else:
+        # Показываем только неархивные
+        cases = list_cases(db, include_archived=False)
     return templates.TemplateResponse(
         request,
         "ui_cases.html",
-        {"cases": cases, "error": error}
+        {"cases": cases, "error": error, "show_archived": show_archived}
     )
 
 
@@ -362,31 +375,45 @@ def ui_case_detail(
     db: Session = Depends(get_db)
 ):
     """Детальная страница кейса с чек-листом. Принимает UUID или код кейса."""
+    # Пытаемся парсить как UUID
     try:
-        # Пытаемся парсить как UUID
-        try:
-            case_uuid = uuid.UUID(case_id)
-            case = get_case(db, case_uuid)
-        except ValueError:
-            # Если не UUID, ищем по коду
-            case = get_case_by_code(db, case_id)
-    except HTTPException:
-        return RedirectResponse(url="/ui/cases", status_code=303)
+        case_uuid = uuid.UUID(case_id)
+        case = get_case(db, case_uuid)
+    except ValueError:
+        # Если не UUID, ищем по коду
+        case = get_case_by_code(db, case_id)
+    # HTTPException из get_case/get_case_by_code пробросится автоматически (404)
     
     # Получаем чек-лист с фильтром по статусу
-    all_checklist_items = get_case_checklist_with_documents(db, case.id, status_filter=status)
+    try:
+        all_checklist_items = get_case_checklist_with_documents(db, case.id, status_filter=status)
+    except Exception:
+        all_checklist_items = []
+    
+    # Фильтруем дублирующие пункты "Генерация документов и экспорт"
+    filtered_items = []
+    for item in all_checklist_items:
+        if item.template_item:
+            title_lower = item.template_item.title.lower()
+            if any(phrase in title_lower for phrase in [
+                'генерация документов и экспорт',
+                'сгенерировать справку нмц',
+                'экспорт пакета'
+            ]):
+                continue
+        filtered_items.append(item)
     
     # Разделяем на основание и остальные
-    basis_items, other_items = split_checklist_items_by_basis(all_checklist_items)
+    basis_items, other_items = split_checklist_items_by_basis(filtered_items)
     
     # Получаем документы кейса для dropdown
     case_documents = list_documents(db, case_id=case.id)
     
-    # Подсчитываем прогресс (для всех пунктов)
+    # Подсчитываем прогресс
     total_required = sum(1 for item in all_checklist_items if item.template_item and item.template_item.is_required)
     done_required = sum(1 for item in all_checklist_items if item.template_item and item.template_item.is_required and item.status == "DONE")
     
-    # Группируем остальные пункты по секциям (без основания)
+    # Группируем остальные пункты по секциям
     sections = {}
     for item in other_items:
         if not item.template_item:
@@ -396,7 +423,7 @@ def ui_case_detail(
             sections[section_key] = []
         sections[section_key].append(item)
     
-    # Находим пункты "Проверьте закупку на ошибки" (по ключевым словам в title)
+    # Находим пункты "Проверьте закупку на ошибки"
     error_items = [
         item for item in all_checklist_items
         if item.template_item and ("ошибк" in item.template_item.title.lower() or "риск" in item.template_item.title.lower())
@@ -407,65 +434,102 @@ def ui_case_detail(
     basis_has_todo = any(item.status == "TODO" for item in basis_items if item.template_item and item.template_item.is_required)
     
     # Данные для закупки
-    candidates = db.query(CaseCandidate).filter(
-        CaseCandidate.case_id == case.id
-    ).all()
+    candidates = db.query(CaseCandidate).filter(CaseCandidate.case_id == case.id).all()
+    rfq_requests = db.query(RfqRequest).filter(RfqRequest.case_id == case.id).order_by(RfqRequest.sent_at.desc()).all()
+    commercial_offers = db.query(CommercialOffer).filter(CommercialOffer.case_id == case.id).order_by(CommercialOffer.price_total).all()
+    security_reviews = db.query(SupplierSecurityReview).filter(SupplierSecurityReview.case_id == case.id).all()
     
-    rfq_requests = db.query(RfqRequest).filter(
-        RfqRequest.case_id == case.id
-    ).order_by(RfqRequest.sent_at.desc()).all()
-    
-    commercial_offers = db.query(CommercialOffer).filter(
-        CommercialOffer.case_id == case.id
-    ).order_by(CommercialOffer.price_total).all()
-    
-    security_reviews = db.query(SupplierSecurityReview).filter(
-        SupplierSecurityReview.case_id == case.id
-    ).all()
-    
-    # Список поставщиков для выбора кандидата
     from app.services.suppliers import list_suppliers
     all_suppliers = list_suppliers(db)
     
-    # Категории документов для RFQ и КП
     from app.models.document_category import DocumentCategory
-    rfq_category = db.query(DocumentCategory).filter(
-        DocumentCategory.key == "RFQ_EVIDENCE"
-    ).first()
-    kp_category = db.query(DocumentCategory).filter(
-        DocumentCategory.key == "KP"
-    ).first()
-    sb_category = db.query(DocumentCategory).filter(
-        DocumentCategory.key == "SB_CONCLUSION"
-    ).first()
+    rfq_category = db.query(DocumentCategory).filter(DocumentCategory.key == "RFQ_EVIDENCE").first()
+    kp_category = db.query(DocumentCategory).filter(DocumentCategory.key == "KP").first()
+    sb_category = db.query(DocumentCategory).filter(DocumentCategory.key == "SB_CONCLUSION").first()
     
-    return templates.TemplateResponse(
-        request,
-        "ui_case_detail.html",
-        {
-            "case": case,
-            "basis_items": basis_items,
-            "other_checklist_items": other_items,
-            "sections": sections,
-            "case_documents": case_documents,
-            "status_filter": status,
-            "total_required": total_required,
-            "done_required": done_required,
-            "error_items": error_items,
-            "error_todo_count": error_todo_count,
-            "basis_has_todo": basis_has_todo,
-            "case": case,  # Убеждаемся, что case передаётся в шаблон
-            # Данные закупки
-            "candidates": candidates,
-            "rfq_requests": rfq_requests,
-            "commercial_offers": commercial_offers,
-            "security_reviews": security_reviews,
-            "all_suppliers": all_suppliers,
-            "rfq_category": rfq_category,
-            "kp_category": kp_category,
-            "sb_category": sb_category
-        }
-    )
+    try:
+        return templates.TemplateResponse(
+            request,
+            "ui_case_detail.html",
+            {
+                "case": case,
+                "basis_items": basis_items,
+                "other_checklist_items": other_items,
+                "sections": sections,
+                "case_documents": case_documents,
+                "status_filter": status,
+                "total_required": total_required,
+                "done_required": done_required,
+                "error_items": error_items,
+                "error_todo_count": error_todo_count,
+                "basis_has_todo": basis_has_todo,
+                # Данные закупки
+                "candidates": candidates,
+                "rfq_requests": rfq_requests,
+                "commercial_offers": commercial_offers,
+                "security_reviews": security_reviews,
+                "all_suppliers": all_suppliers,
+                "rfq_category": rfq_category,
+                "kp_category": kp_category,
+                "sb_category": sb_category
+            }
+        )
+    except Exception as e:
+        # Обработка ошибок при рендеринге страницы - логируем и показываем детальную ошибку
+        import logging
+        logger = logging.getLogger(__name__)
+        import traceback
+        error_detail = str(e)
+        traceback_str = traceback.format_exc()
+        logger.error(f"Ошибка при рендеринге страницы закупки: {error_detail}\n{traceback_str}")
+        # URL-кодируем ошибку для передачи в query string
+        from urllib.parse import quote
+        error_encoded = quote(error_detail[:200])  # Ограничиваем длину
+        return RedirectResponse(url=f"/ui/cases?error={error_encoded}", status_code=303)
+
+
+@ui_router.post("/cases/{case_id}/basis/update", response_class=RedirectResponse, status_code=303)
+def ui_basis_update(
+    request: Request,
+    case_id: uuid.UUID,
+    case_checklist_item_id: str = Form(...),
+    status: str = Form(...),
+    doc_number: str | None = Form(None),
+    doc_date: str | None = Form(None),
+    comment: str | None = Form(None),
+    status_filter: str | None = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Обновление пункта основания закупки (статус, номер документа, дата, комментарий)."""
+    try:
+        from datetime import datetime
+        item_id = uuid.UUID(case_checklist_item_id)
+        
+        # Парсим дату документа
+        doc_date_obj = None
+        if doc_date:
+            try:
+                doc_date_obj = datetime.strptime(doc_date, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
+        update_checklist_item_status(
+            db, case_id, item_id, status, 
+            comment=comment,
+            doc_number=doc_number,
+            doc_date=doc_date_obj
+        )
+        
+        # Редирект обратно с сохранением фильтра
+        url = f"/ui/cases/{case_id}#basis"
+        if status_filter:
+            url += f"?status={status_filter}"
+        return RedirectResponse(url=url, status_code=303)
+    except Exception as e:
+        url = f"/ui/cases/{case_id}?error={str(e)}#basis"
+        if status_filter:
+            url += f"&status={status_filter}"
+        return RedirectResponse(url=url, status_code=303)
 
 
 @ui_router.post("/cases/{case_id}/checklist/update", response_class=RedirectResponse, status_code=303)
@@ -1053,6 +1117,27 @@ def ui_export_zip(
             url=f"/ui/cases/{case_id}?error={str(e)}",
             status_code=303
         )
+
+
+@ui_router.post("/cases/{case_id}/archive", response_class=RedirectResponse, status_code=303)
+def ui_case_archive(
+    request: Request,
+    case_id: str,
+    db: Session = Depends(get_db)
+):
+    """Архивирование закупки."""
+    # Пытаемся парсить как UUID
+    try:
+        case_uuid = uuid.UUID(case_id)
+        case = get_case(db, case_uuid)
+    except ValueError:
+        # Если не UUID, ищем по коду
+        case = get_case_by_code(db, case_id)
+    # HTTPException из get_case/get_case_by_code пробросится автоматически (404)
+    
+    case.archived = True
+    db.commit()
+    return RedirectResponse(url="/ui/cases", status_code=303)
 
 
 @ui_router.get("/document-categories", response_class=HTMLResponse)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Кейс {{ case.code }} - AI-SNAB</title>
+    <title>Закупка {{ case.code }} - AI-SNAB</title>
     <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
     <style>
         .checklist-section {
@@ -41,10 +41,18 @@
     <div class="container mt-4">
         <!-- Навигация -->
         <div class="mb-3">
-            <a href="/ui/cases" class="btn btn-secondary">← К списку кейсов</a>
+            {% include 'includes/back_home_link.html' %}
+            <a href="/ui/cases" class="btn btn-secondary">← К списку закупок</a>
+            {% if not case.archived %}
+            <form method="POST" action="/ui/cases/{{ case.id }}/archive" style="display: inline;" onsubmit="return confirm('Архивировать закупку?');">
+                <button type="submit" class="btn btn-warning">Архивировать</button>
+            </form>
+            {% else %}
+            <span class="badge bg-secondary">Архивная закупка</span>
+            {% endif %}
         </div>
 
-        <!-- Заголовок кейса -->
+        <!-- Заголовок закупки -->
         <div class="card mb-4">
             <div class="card-header">
                 <h2 class="mb-0">{{ case.code }} — {{ case.title }}</h2>
@@ -54,10 +62,10 @@
                     <div class="col-md-6">
                         <p><strong>Статус:</strong> <span class="badge bg-secondary">{{ case.status }}</span></p>
                         <p><strong>Этап процедуры:</strong> <span class="badge bg-info">{{ case.procedure_stage }}</span></p>
-                        <p><strong>Создан:</strong> {{ case.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                        <p><strong>Создан:</strong> {{ case.created_at.strftime('%d.%m.%Y %H:%M') if case.created_at else '—' }}</p>
                     </div>
                     <div class="col-md-6">
-                        <p><strong>Обновлен:</strong> {{ case.updated_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                        <p><strong>Обновлен:</strong> {{ case.updated_at.strftime('%d.%m.%Y %H:%M') if case.updated_at else '—' }}</p>
                     </div>
                 </div>
             </div>
@@ -76,6 +84,22 @@
             {{ request.query_params.get('success') }}
         </div>
         {% endif %}
+
+        <!-- Чат-блок -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Чат-помощник</h5>
+            </div>
+            <div class="card-body">
+                <div id="chatMessages" style="max-height: 300px; overflow-y: auto; margin-bottom: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;">
+                    <!-- Сообщения чата будут здесь -->
+                </div>
+                <form id="chatForm" class="d-flex">
+                    <input type="text" id="chatInput" class="form-control me-2" placeholder="Введите вопрос..." required>
+                    <button type="submit" class="btn btn-primary" id="chatSubmitBtn">Отправить</button>
+                </form>
+            </div>
+        </div>
 
         <!-- Кнопки генерации и экспорта -->
         <div class="card mb-4">
@@ -109,10 +133,11 @@
                 {% if basis_items %}
                     <ol class="list-group list-group-numbered">
                         {% for item in basis_items %}
+                        {% if item.template_item %}
                         <li class="list-group-item">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ item.template_item.title if item.template_item else '—' }}</h6>
+                                    <h6 class="mb-1">{{ item.template_item.title }}</h6>
                                     {% if item.template_item and item.template_item.hint %}
                                     <small class="text-muted">{{ item.template_item.hint }}</small>
                                     {% endif %}
@@ -153,26 +178,6 @@
                                 </div>
                             </form>
                             
-                            <form method="POST" action="/ui/cases/{{ case.id }}/checklist/attach" class="mt-2">
-                                {% if status_filter %}
-                                <input type="hidden" name="status_filter" value="{{ status_filter }}">
-                                {% endif %}
-                                <input type="hidden" name="case_checklist_item_id" value="{{ item.id }}">
-                                <div class="row">
-                                    <div class="col-md-8 mb-2">
-                                        <select name="document_id" class="form-select form-select-sm">
-                                            <option value="">— выбрать документ —</option>
-                                            {% for doc in case_documents %}
-                                            <option value="{{ doc.id }}">{{ doc.original_filename }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">Прикрепить</button>
-                                    </div>
-                                </div>
-                            </form>
-                            
                             {% if item.documents %}
                             <div class="mt-2">
                                 <small><strong>Прикреплённые документы:</strong></small>
@@ -194,6 +199,15 @@
                             </div>
                             {% endif %}
                         </li>
+                        {% else %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">—</h6>
+                                </div>
+                            </div>
+                        </li>
+                        {% endif %}
                         {% endfor %}
                     </ol>
                 {% else %}
@@ -209,7 +223,7 @@
                 <div class="alert alert-success mb-0">
                     <strong>✅ Закупка активирована</strong>
                     {% if case.activated_at %}
-                    <br><small>Дата активации: {{ case.activated_at.strftime('%d.%m.%Y %H:%M') }}</small>
+                    <br><small>Дата активации: {{ case.activated_at.strftime('%d.%m.%Y %H:%M') if case.activated_at else '—' }}</small>
                     {% endif %}
                 </div>
                 {% else %}
@@ -406,7 +420,7 @@
                         <div class="col-md-6 mb-2">
                             <label class="form-label">Документ подтверждения</label>
                             <select name="evidence_document_id" class="form-select">
-                                <option value="">— выбрать из документов кейса —</option>
+                                <option value="">— выбрать из документов закупки —</option>
                                 {% for doc in case_documents %}
                                 {% if doc.category and doc.category.key == 'RFQ_EVIDENCE' %}
                                 <option value="{{ doc.id }}">{{ doc.original_filename }}</option>
@@ -435,7 +449,7 @@
                         <tr>
                             <td>{{ rfq.candidate.org_name }}</td>
                             <td>{{ rfq.channel }}</td>
-                            <td>{{ rfq.sent_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                            <td>{{ rfq.sent_at.strftime('%d.%m.%Y %H:%M') if rfq.sent_at else '—' }}</td>
                             <td><span class="badge bg-{% if rfq.result == 'RECEIVED_OFFER' %}success{% elif rfq.result == 'REFUSAL' %}danger{% else %}warning{% endif %}">{{ rfq.result }}</span></td>
                             <td>
                                 {% if rfq.evidence_document %}
@@ -533,7 +547,7 @@
                                 —
                                 {% endif %}
                             </td>
-                            <td>{{ offer.created_at.strftime('%d.%m.%Y') }}</td>
+                            <td>{{ offer.created_at.strftime('%d.%m.%Y') if offer.created_at else '—' }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -778,17 +792,25 @@
                         {{ section_key }}
                     </summary>
                     
-                    {% set current_group = None %}
+                    {% set current_group_clean = None %}
+                    {% set group_opened = false %}
                     {% for item in section_items %}
-                        {% if item.template_item.group_title != current_group %}
-                            {% if current_group %}
+                        {% set group_clean = (item.template_item.group_title) if item.template_item and item.template_item.group_title else '' %}
+                        {% set title_clean = (item.template_item.title) if item.template_item else '' %}
+                        {% set group_changed = group_clean and group_clean != current_group_clean %}
+                        {% set should_show_group = group_changed and group_clean != title_clean %}
+                        
+                        {% if group_changed %}
+                            {% if group_opened %}
                                 </div> <!-- закрываем предыдущую группу -->
+                                {% set group_opened = false %}
                             {% endif %}
-                            {% if item.template_item.group_title %}
-                            <div class="checklist-group">
-                                <strong>{{ item.template_item.group_title }}</strong>
+                            {% if should_show_group %}
+                                <div class="checklist-group">
+                                    <strong>{{ item.template_item.group_title }}</strong>
+                                {% set group_opened = true %}
                             {% endif %}
-                            {% set current_group = item.template_item.group_title %}
+                            {% set current_group_clean = group_clean %}
                         {% endif %}
                         
                         <div class="checklist-item {% if item.status == 'DONE' %}done{% elif item.status == 'NA' %}na{% endif %}">
@@ -828,39 +850,25 @@
                                     <div class="col-md-12">
                                         <button type="submit" class="btn btn-sm btn-primary">Сохранить</button>
                                         
-                                        <!-- Прикрепление документов -->
+                                        <!-- Список прикрепленных документов -->
+                                        {% if item.documents %}
                                         <div class="mt-2">
-                                            <div class="input-group input-group-sm">
-                                                <select class="form-select" id="doc-select-{{ item.id }}">
-                                                    <option value="">— выбрать документ —</option>
-                                                    {% for doc in case_documents %}
-                                                    <option value="{{ doc.id }}">{{ doc.original_filename }} ({{ doc.category.name }})</option>
-                                                    {% endfor %}
-                                                </select>
-                                                <button type="button" class="btn btn-outline-secondary" onclick="attachDocument('{{ item.id }}', '{{ case.id }}', '{{ status_filter or '' }}')">Прикрепить</button>
-                                            </div>
-                                            
-                                            <!-- Список прикрепленных документов -->
-                                            {% if item.documents %}
-                                            <div class="mt-2">
-                                                <small><strong>Прикрепленные документы:</strong></small>
-                                                <ul class="list-unstyled">
-                                                    {% for link in item.documents %}
-                                                    <li>
-                                                        <a href="/ui/documents/{{ link.document.id }}/download" target="_blank">{{ link.document.original_filename }}</a>
-                                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="detachDocument('{{ item.id }}', '{{ link.document.id }}', '{{ case.id }}', '{{ status_filter or '' }}')">Открепить</button>
-                                                    </li>
-                                                    {% endfor %}
-                                                </ul>
-                                            </div>
-                                            {% endif %}
+                                            <small><strong>Прикрепленные документы:</strong></small>
+                                            <ul class="list-unstyled">
+                                                {% for link in item.documents %}
+                                                <li>
+                                                    <a href="/ui/documents/{{ link.document.id }}/download" target="_blank">{{ link.document.original_filename }}</a>
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
                                         </div>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </form>
                         </div>
                     {% endfor %}
-                    {% if current_group %}
+                    {% if group_opened %}
                     </div> <!-- закрываем последнюю группу -->
                     {% endif %}
                 </details>
@@ -916,97 +924,116 @@
             </div>
         </div>
         {% endif %}
-
-        <!-- Контрольные вопросы (MVP - только текст) -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Контрольные вопросы</h5>
-            </div>
-            <div class="card-body">
-                <p class="text-muted">
-                    <em>Этот раздел содержит контрольные вопросы для проверки закупочной процедуры. 
-                    Ответы на вопросы помогают выявить потенциальные проблемы и риски.</em>
-                </p>
-                <ul>
-                    <li>Соответствует ли закупка требованиям законодательства?</li>
-                    <li>Правильно ли определен предмет закупки?</li>
-                    <li>Соответствует ли выбранный способ закупки требованиям?</li>
-                    <li>Проведена ли проверка поставщика на соответствие требованиям?</li>
-                    <li>Соблюдены ли сроки проведения закупки?</li>
-                </ul>
-            </div>
-        </div>
     </div>
 
     <script>
-        function attachDocument(itemId, caseId, statusFilter) {
-            const select = document.getElementById('doc-select-' + itemId);
-            const docId = select.value;
-            if (!docId) {
-                alert('Выберите документ');
-                return;
-            }
-            
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/ui/cases/' + caseId + '/checklist/attach';
-            
-            const itemInput = document.createElement('input');
-            itemInput.type = 'hidden';
-            itemInput.name = 'case_checklist_item_id';
-            itemInput.value = itemId;
-            form.appendChild(itemInput);
-            
-            const docInput = document.createElement('input');
-            docInput.type = 'hidden';
-            docInput.name = 'document_id';
-            docInput.value = docId;
-            form.appendChild(docInput);
-            
-            if (statusFilter) {
-                const filterInput = document.createElement('input');
-                filterInput.type = 'hidden';
-                filterInput.name = 'status_filter';
-                filterInput.value = statusFilter;
-                form.appendChild(filterInput);
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
+        // Чат и подсказки
+        const caseId = '{{ case.id if case else "" }}';
+        let lastTip = null;
+        let pollingInterval = null;
+
+        // Функция добавления сообщения в чат
+        function addChatMessage(text, isSystem = false) {
+            const messagesDiv = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = isSystem ? 'text-muted small mb-2' : 'mb-2';
+            messageDiv.innerHTML = `<strong>${isSystem ? '💡 Система' : 'Вы'}:</strong> ${text}`;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
-        
-        function detachDocument(itemId, docId, caseId, statusFilter) {
-            if (!confirm('Открепить документ?')) {
-                return;
+
+        // Функция отправки сообщения в чат
+        document.getElementById('chatForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addChatMessage(message, false);
+            input.value = '';
+            const submitBtn = document.getElementById('chatSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Отправка...';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        case_id: caseId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка при отправке сообщения');
+                }
+
+                const data = await response.json();
+                addChatMessage(data.response, true);
+            } catch (error) {
+                addChatMessage('Ошибка: ' + error.message, true);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Отправить';
             }
-            
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/ui/cases/' + caseId + '/checklist/detach';
-            
-            const itemInput = document.createElement('input');
-            itemInput.type = 'hidden';
-            itemInput.name = 'case_checklist_item_id';
-            itemInput.value = itemId;
-            form.appendChild(itemInput);
-            
-            const docInput = document.createElement('input');
-            docInput.type = 'hidden';
-            docInput.name = 'document_id';
-            docInput.value = docId;
-            form.appendChild(docInput);
-            
-            if (statusFilter) {
-                const filterInput = document.createElement('input');
-                filterInput.type = 'hidden';
-                filterInput.name = 'status_filter';
-                filterInput.value = statusFilter;
-                form.appendChild(filterInput);
+        });
+
+        // Функция проверки состояния и генерации подсказок
+        async function checkStateAndSuggest() {
+            try {
+                // Получаем документы закупки
+                const docsResponse = await fetch(`/api/documents?case_id=${caseId}`);
+                if (!docsResponse.ok) return;
+                
+                const docs = await docsResponse.json();
+                
+                // Анализируем состояние документов
+                const hasDocuments = docs && docs.length > 0;
+                const hasInProgress = docs && docs.some(d => d.status === 'IN_PROGRESS');
+                const hasErrors = docs && docs.some(d => d.status === 'ERROR');
+                const allDone = docs && docs.length > 0 && docs.every(d => d.status === 'DONE');
+
+                // Определяем tip_key для дедупа
+                let tip = null;
+                let tipKey = null;
+                
+                if (!hasDocuments) {
+                    tip = 'Начните с загрузки документа основания/ТЗ…';
+                    tipKey = 'no_documents';
+                } else if (hasInProgress) {
+                    tip = 'Идёт обработка документов, подождите…';
+                    tipKey = 'in_progress';
+                } else if (hasErrors) {
+                    tip = 'Есть ошибки обработки документов. Откройте документ и перезагрузите/проверьте формат…';
+                    tipKey = 'has_errors';
+                } else if (allDone) {
+                    tip = 'Можно генерировать НМЦ и экспорт пакета…';
+                    tipKey = 'all_ready';
+                }
+
+                // Показываем подсказку только если она изменилась (дедуп по tipKey)
+                if (tip && tipKey !== lastTip) {
+                    addChatMessage(tip, true);
+                    lastTip = tipKey;
+                }
+            } catch (error) {
+                console.error('Ошибка проверки состояния:', error);
             }
-            
-            document.body.appendChild(form);
-            form.submit();
         }
+
+        // Запускаем проверку состояния при загрузке и периодически
+        checkStateAndSuggest();
+        pollingInterval = setInterval(checkStateAndSuggest, 5000); // Каждые 5 секунд
+
+        // Останавливаем polling при уходе со страницы
+        window.addEventListener('beforeunload', function() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+        });
     </script>
 </body>
 </html>

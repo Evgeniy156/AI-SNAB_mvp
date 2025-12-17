@@ -1,5 +1,6 @@
 """Сервис для работы с чек-листами закупочных процедур."""
 from typing import List
+from datetime import date
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 import uuid
@@ -162,10 +163,12 @@ def update_checklist_item_status(
     case_id: uuid.UUID,
     checklist_item_id: uuid.UUID,
     status: str,
-    comment: str | None = None
+    comment: str | None = None,
+    doc_number: str | None = None,
+    doc_date: date | None = None
 ) -> CaseChecklistItem:
     """
-    Обновляет статус и комментарий пункта чек-листа.
+    Обновляет статус, комментарий, номер и дату документа пункта чек-листа.
     
     Валидация: item должен принадлежать case_id, status должен быть в допустимых значениях.
     """
@@ -185,6 +188,10 @@ def update_checklist_item_status(
     item.status = status
     if comment is not None:
         item.comment = comment
+    if doc_number is not None:
+        item.doc_number = doc_number if doc_number.strip() else None
+    if doc_date is not None:
+        item.doc_date = doc_date
     
     db.commit()
     db.refresh(item)
