@@ -198,12 +198,12 @@ docker compose ps
 
 ### 3) Доступ
 
-Приложение доступно через Nginx на порту 8080:
+Приложение доступно через Nginx на порту ....:
 
-- **UI**:      http://localhost:8080/ui
-- **Health**:  http://localhost:8080/health
-- **DB**:      http://localhost:8080/health/db
-- **Storage**: http://localhost:8080/health/storage
+- **UI**:      http://localhost:..../ui
+- **Health**:  http://localhost:..../health
+- **DB**:      http://localhost:..../health/db
+- **Storage**: http://localhost:..../health/storage
 
 ### 4) Seed демо-данных
 
